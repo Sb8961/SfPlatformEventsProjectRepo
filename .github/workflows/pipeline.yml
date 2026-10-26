@@ -1,0 +1,125 @@
+# ================================================================
+# Salesforce Delta Deployment Pipeline — DEV only
+#
+# FLOW:
+# 1. PR raised from main → develop  → Validation runs against DEV
+# 2. Validation passes              → Reviewer approves PR
+# 3. PR merged into develop         → Delta deploys to DEV Sandbox
+# ================================================================
+
+name: Salesforce Delta Pipeline - DEV
+
+on:
+  pull_request:
+    branches:
+      - develop
+  push:
+    branches:
+      - develop
+
+# Prevent two deployments to DEV running at the same time
+concurrency:
+  group: salesforce-dev
+  cancel-in-progress: false
+
+env:
+  ENV_NAME: DEV
+  TEST_LEVEL: NoTestRun
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # For PRs, only run when the source branch is main
+    if: github.event_name == 'push' || github.head_ref == 'main'
+
+    steps:
+
+      - name: Checkout Full Git History
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Salesforce CLI
+        run: | 
+          npm install --global @salesforce/cli
+          sf --version
+
+      - name: Install sfdx-git-delta
+        run: echo y | sf plugins install sfdx-git-delta
+
+      - name: Authenticate to Salesforce (DEV)
+        env:
+          AUTH_URL: ${{ secrets.SALESFORCE_AUTH_URL_DEV }}
+        run: |
+          echo "$AUTH_URL" | sf org login sfdx-url \
+            --alias target-org \
+            --set-default \
+            --sfdx-url-stdin
+
+      - name: Work Out Delta Range
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            # Everything in the PR compared with current develop
+            FROM_SHA="${{ github.event.pull_request.base.sha }}"
+          else
+            # Everything pushed to develop since the last run
+            FROM_SHA="${{ github.event.before }}"
+            if [ -z "$FROM_SHA" ] || [ "$FROM_SHA" == "0000000000000000000000000000000000000000" ]; then
+              FROM_SHA=$(git rev-parse HEAD~1)
+            fi
+          fi
+          echo "FROM_SHA=$FROM_SHA" >> $GITHUB_ENV
+          echo "Delta range: $FROM_SHA → HEAD"
+
+      - name: Generate Delta Package
+        run: |
+          mkdir -p delta
+          sf sgd source delta \
+            --from "$FROM_SHA" \
+            --to HEAD \
+            --output-dir delta \
+            --source-dir force-app \
+            --generate-delta
+          echo "====== Delta Components for DEV ======"
+          cat delta/package/package.xml
+
+      - name: Validate Delta (DEV)
+        if: github.event_name == 'pull_request'
+        run: |
+          if grep -q '<members>' delta/package/package.xml; then
+            sf project deploy validate \
+              --manifest delta/package/package.xml \
+              --target-org target-org \
+              --test-level RunLocalTests \
+              --wait 60
+          else
+            echo "No Salesforce metadata changes found. Skipping validation."
+          fi
+
+      - name: Deploy Delta to DEV
+        if: github.event_name == 'push'
+        run: |
+          if grep -q '<members>' delta/package/package.xml; then
+            sf project deploy start \
+              --manifest delta/package/package.xml \
+              --target-org target-org \
+              --test-level $TEST_LEVEL \
+              --wait 60
+          else
+            echo "No Salesforce metadata changes found. Skipping deployment."
+          fi
+
+      - name: Deploy Destructive Changes
+        if: github.event_name == 'push'
+        run: |
+          if [ -f "delta/destructiveChanges/destructiveChanges.xml" ] && \
+             grep -q '<types>' delta/destructiveChanges/destructiveChanges.xml; then
+            sf project deploy start \
+              --manifest delta/destructiveChanges/package.xml \
+              --post-destructive-changes delta/destructiveChanges/destructiveChanges.xml \
+              --target-org target-org \
+              --test-level NoTestRun \
+              --wait 30
+          else
+            echo "No destructive changes found. Skipping."
+          fi
