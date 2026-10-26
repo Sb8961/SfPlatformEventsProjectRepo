@@ -1,0 +1,52 @@
+<template>
+    <lightning-card title="Subscribing PE using LWC">
+        <!-- Button to check for updated orders -->
+        <lightning-card title="EmpApi Example" icon-name="custom:custom14">
+            <div class="slds-m-around_medium">
+                <p>
+                    Click the button to get latest orders placed!
+                </p>
+                 <lightning-input
+                    label="Channel Name"
+                    value={channelName}
+                    onchange={handleChannelName}
+                ></lightning-input> 
+                <lightning-button
+                    variant="success"
+                    label="Subscribe"
+                    title="Subscribe"
+                    onclick={handleSubscribe}
+                    disabled={isSubscribeDisabled}
+                    class="slds-m-left_x-small"
+                ></lightning-button>
+                <lightning-button
+                    variant="success"
+                    label="Subscribe2"
+                    title="Subscribe"
+                    onclick={handleSubscribe2}
+                    disabled={isSubscribeDisabled}
+                    class="slds-m-left_x-small"
+                ></lightning-button>
+                <div if:true={dataFetched}>
+                    <ul>
+                        <li>{platformEventData}</li>
+                        
+                    </ul>
+                    <ul for:each={eventList} for:item="data" key={data}>
+                        <li>{data}</li>
+                    </ul>
+                </div>
+                 <lightning-button
+                    variant="destructive"
+                    label="Unsubscribe"
+                    title="Unsubscribe"
+                    onclick={handleUnsubscribe}
+                    disabled={isUnsubscribeDisabled}
+                    class="slds-m-left_x-small"
+                ></lightning-button>
+            </div>
+        </lightning-card>
+    
+
+    </lightning-card>
+</template>

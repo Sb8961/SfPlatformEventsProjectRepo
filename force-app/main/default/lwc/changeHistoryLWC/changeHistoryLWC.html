@@ -1,0 +1,12 @@
+<!-- contactList.html -->
+<template>
+    <lightning-card title="Change History List Details">
+        <template if:true={changeHistoryDetails.data}>
+            <lightning-datatable
+                key-field="Id"
+                data={changeHistoryDetails.data}
+                columns={columns}>
+            </lightning-datatable>
+        </template>
+    </lightning-card>
+</template>

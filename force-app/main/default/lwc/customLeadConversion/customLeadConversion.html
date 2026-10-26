@@ -1,0 +1,31 @@
+<template>
+    <lightning-card title="Convert Patient Lead">
+        <div class="slds-p-around_medium">
+            
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Processing" size="medium"></lightning-spinner>
+                <p class="slds-text-align_center slds-m-top_medium">Processing Lead Conversion...</p>
+            </template>
+
+            <template if:true={showSelectionScreen}>
+                <template if:false={isLoading}>
+                    <p class="slds-m-bottom_medium">We found existing patient records that match this lead's Date of Birth and Email/Phone. Please select an existing record to merge, or create a new one.</p>
+                    
+                    <lightning-radio-group name="matchSelection"
+                                          label="Matching Records"
+                                          options={matches}
+                                          value={selectedPatientId}
+                                          type="radio"
+                                          onchange={handleSelection}
+                                          required>
+                    </lightning-radio-group>
+
+                    <div class="slds-m-top_large slds-text-align_right">
+                        <lightning-button variant="brand" label="Confirm & Convert" onclick={handleNext}></lightning-button>
+                    </div>
+                </template>
+            </template>
+
+        </div>
+    </lightning-card>
+</template>
